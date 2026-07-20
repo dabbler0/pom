@@ -2,10 +2,12 @@ import { useState } from 'react';
 import type { RoomController } from '../webrtc/RoomController';
 import { useRoomState, useRoomStatuses } from '../state/useRoomController';
 import { useNow } from '../state/useNow';
+import { useFaviconClock } from '../state/useFaviconClock';
 import { buildSchedule, currentBlock } from '../timer';
 import { CountdownClock } from './CountdownClock';
 import { ScheduleTable } from './ScheduleTable';
 import { InvitePanel } from './InvitePanel';
+import { AddRoundsControl } from './AddRoundsControl';
 
 interface Props {
   controller: RoomController;
@@ -24,6 +26,8 @@ export function RoomView({ controller, guestResponseCode }: Props) {
   const active = currentBlock(blocks, now);
   const scheduleDone = blocks.length > 0 && now >= blocks[blocks.length - 1].end;
   const connectedToHost = controller.role === 'host' || controller.getStatus(controller.selfId) === 'connected';
+
+  useFaviconClock(active, now);
 
   return (
     <div className="room">
@@ -82,7 +86,10 @@ export function RoomView({ controller, guestResponseCode }: Props) {
         statuses={statuses}
         now={now}
         onSetIntention={(blockIndex, text) => controller.setIntention(blockIndex, text)}
+        onSetCompletion={(blockIndex, completion) => controller.setCompletion(blockIndex, completion)}
       />
+
+      {controller.role === 'host' && <AddRoundsControl onAdd={(count) => controller.addIterations(count)} />}
     </div>
   );
 }

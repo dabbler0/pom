@@ -9,9 +9,13 @@ Live at: https://dabbler0.github.io/pom/
 
 **Host a room.** Pick a work duration, break duration, and number of iterations.
 You immediately get a schedule table (work, break, work, break, …) starting from
-now, with an animated countdown ring for whichever block is currently active.
-Rows are greyed out once they're in the past. Fill in an intention for each of
-your work blocks.
+now, with an animated countdown ring for whichever block is currently active —
+mirrored live in the browser tab's favicon as a shrinking pie, so you can see
+time running out even from another tab. Rows are greyed out once they're in
+the past. Fill in an intention for each of your work blocks, and check ✓ or ✕
+them off once they're done (✓ gets a little celebratory pop). Running long?
+The host can add more rounds on the fly without disturbing the schedule
+already in progress.
 
 **Invite others.** Generate an invite link (or raw invite code) and send it to
 someone however you like — chat, email, whatever. There's no server relaying

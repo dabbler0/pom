@@ -1,4 +1,4 @@
-import type { ConnectionStatus, Participant, RoomConfig, RoomState } from '../types';
+import type { Completion, ConnectionStatus, Participant, RoomConfig, RoomState } from '../types';
 import { ICE_SERVERS, decodeSignal, encodeSignal, randomId, waitForIceGatheringComplete } from './signaling';
 import type { ClientToHostMessage, HostToClientMessage, WireMessage } from './protocol';
 
@@ -53,6 +53,7 @@ export class RoomController {
       config,
       participants: [host],
       intentions: { [hostId]: {} },
+      completions: { [hostId]: {} },
     });
     controller.setStatus(hostId, 'connected');
     return controller;
@@ -65,6 +66,7 @@ export class RoomController {
       config: { startTime: Date.now(), workMinutes: 25, breakMinutes: 5, iterations: 1 },
       participants: [placeholder],
       intentions: { [guestId]: {} },
+      completions: { [guestId]: {} },
     });
     controller.setStatus(guestId, 'connecting');
     return controller;
@@ -159,6 +161,7 @@ export class RoomController {
           ...this.state,
           participants: [...this.state.participants, participant],
           intentions: { ...this.state.intentions, [participant.id]: {} },
+          completions: { ...this.state.completions, [participant.id]: {} },
         };
         this.guestLinks.set(participant.id, { pc, channel });
         this.pendingInvites.delete(
@@ -187,6 +190,15 @@ export class RoomController {
         this.applyIntention(participantId, msg.blockIndex, msg.text);
         this.broadcast({ type: 'intention-updated', participantId, blockIndex: msg.blockIndex, text: msg.text });
         this.notify();
+      } else if (msg.type === 'set-completion') {
+        this.applyCompletion(participantId, msg.blockIndex, msg.completion);
+        this.broadcast({
+          type: 'completion-updated',
+          participantId,
+          blockIndex: msg.blockIndex,
+          completion: msg.completion,
+        });
+        this.notify();
       }
     };
 
@@ -203,6 +215,19 @@ export class RoomController {
         ...this.state.intentions,
         [participantId]: { ...this.state.intentions[participantId], [blockIndex]: text },
       },
+    };
+  }
+
+  private applyCompletion(participantId: string, blockIndex: number, completion: Completion | null) {
+    const forParticipant = { ...(this.state.completions[participantId] ?? {}) };
+    if (completion) {
+      forParticipant[blockIndex] = completion;
+    } else {
+      delete forParticipant[blockIndex];
+    }
+    this.state = {
+      ...this.state,
+      completions: { ...this.state.completions, [participantId]: forParticipant },
     };
   }
 
@@ -275,6 +300,14 @@ export class RoomController {
           this.applyIntention(msg.participantId, msg.blockIndex, msg.text);
           this.notify();
           break;
+        case 'completion-updated':
+          this.applyCompletion(msg.participantId, msg.blockIndex, msg.completion);
+          this.notify();
+          break;
+        case 'config-updated':
+          this.state = { ...this.state, config: msg.config };
+          this.notify();
+          break;
         case 'name-updated':
           this.state = {
             ...this.state,
@@ -310,6 +343,16 @@ export class RoomController {
     }
   }
 
+  setCompletion(blockIndex: number, completion: Completion | null) {
+    this.applyCompletion(this.selfId, blockIndex, completion);
+    this.notify();
+    if (this.role === 'host') {
+      this.broadcast({ type: 'completion-updated', participantId: this.selfId, blockIndex, completion });
+    } else if (this.hostChannel) {
+      this.send(this.hostChannel, { type: 'set-completion', blockIndex, completion });
+    }
+  }
+
   setName(name: string) {
     this.state = {
       ...this.state,
@@ -321,5 +364,17 @@ export class RoomController {
     } else if (this.hostChannel) {
       this.send(this.hostChannel, { type: 'set-name', name });
     }
+  }
+
+  /** Extends the schedule with more work/break rounds. Host-authoritative: guests can't call this. */
+  addIterations(count: number) {
+    if (this.role !== 'host') throw new Error('Only the host can extend the schedule');
+    if (count <= 0) return;
+    this.state = {
+      ...this.state,
+      config: { ...this.state.config, iterations: this.state.config.iterations + count },
+    };
+    this.notify();
+    this.broadcast({ type: 'config-updated', config: this.state.config });
   }
 }

@@ -28,10 +28,16 @@ export interface Participant {
 /** intentions[participantId][blockIndex] = free text */
 export type Intentions = Record<string, Record<number, string>>;
 
+export type Completion = 'done' | 'missed';
+
+/** completions[participantId][blockIndex] = whether that work block was completed */
+export type Completions = Record<string, Record<number, Completion>>;
+
 export interface RoomState {
   config: RoomConfig;
   participants: Participant[];
   intentions: Intentions;
+  completions: Completions;
 }
 
 export type ConnectionStatus =

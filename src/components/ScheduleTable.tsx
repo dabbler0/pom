@@ -1,6 +1,7 @@
-import type { ConnectionStatus, RoomState } from '../types';
+import type { Completion, ConnectionStatus, RoomState } from '../types';
 import { blockStatus, buildSchedule, formatClockTime } from '../timer';
 import { IntentionCell } from './IntentionCell';
+import { CompletionToggle } from './CompletionToggle';
 
 interface Props {
   state: RoomState;
@@ -8,9 +9,10 @@ interface Props {
   statuses: Record<string, ConnectionStatus>;
   now: number;
   onSetIntention: (blockIndex: number, text: string) => void;
+  onSetCompletion: (blockIndex: number, completion: Completion | null) => void;
 }
 
-export function ScheduleTable({ state, selfId, statuses, now, onSetIntention }: Props) {
+export function ScheduleTable({ state, selfId, statuses, now, onSetIntention, onSetCompletion }: Props) {
   const blocks = buildSchedule(state.config);
 
   return (
@@ -32,24 +34,40 @@ export function ScheduleTable({ state, selfId, statuses, now, onSetIntention }: 
         <tbody>
           {blocks.map((block) => {
             const status = blockStatus(block, now);
+            const canMark = block.kind === 'work' && status !== 'future';
             return (
               <tr key={block.index} className={`row row--${status} row--${block.kind}`}>
                 <td className="col-time">{formatClockTime(block.start)}</td>
                 <td className="col-kind">{block.kind === 'work' ? `Work ${block.cycle}` : `Break ${block.cycle}`}</td>
-                {state.participants.map((p) => (
-                  <td key={p.id}>
-                    {block.kind === 'work' ? (
-                      <IntentionCell
-                        value={state.intentions[p.id]?.[block.index] ?? ''}
-                        editable={p.id === selfId}
-                        placeholder={p.id === selfId ? 'What will you work on?' : ''}
-                        onChange={(text) => onSetIntention(block.index, text)}
-                      />
-                    ) : (
-                      <span className="cell-text cell-text--muted">rest</span>
-                    )}
-                  </td>
-                ))}
+                {state.participants.map((p) => {
+                  const completion = state.completions[p.id]?.[block.index];
+                  const isSelf = p.id === selfId;
+                  return (
+                    <td key={p.id}>
+                      {block.kind === 'work' ? (
+                        <div
+                          className={`work-cell ${completion ? `work-cell--${completion}` : ''}`}
+                        >
+                          <IntentionCell
+                            value={state.intentions[p.id]?.[block.index] ?? ''}
+                            editable={isSelf}
+                            placeholder={isSelf ? 'What will you work on?' : ''}
+                            onChange={(text) => onSetIntention(block.index, text)}
+                          />
+                          {(canMark || completion) && (
+                            <CompletionToggle
+                              value={completion}
+                              editable={isSelf && canMark}
+                              onChange={(c) => onSetCompletion(block.index, c)}
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        <span className="cell-text cell-text--muted">rest</span>
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             );
           })}
